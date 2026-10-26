@@ -35,19 +35,25 @@ def send_telegram(msg):
 
 def get_signal():
     global last_signal
-    # Ambil data XAUUSD = Gold
     try:
-        data = yf.download("GC=F", period="2d", interval="15m", progress=False)
+        data = yf.download("GC=F", period="2d", interval="15m", progress=False, auto_adjust=True)
         if len(data) < 50:
             return None, 0
         
-        close = data['Close']
-        # Hitung EMA & RSI sederhana
+        # FIX: ambil Close dengan benar
+        if isinstance(data['Close'], pd.DataFrame):
+            close = data['Close'].iloc[:, 0]
+        else:
+            close = data['Close']
+            
+        close = close.dropna()
+        if len(close) < 50:
+            return None, 0
+            
         ema_fast = close.ewm(span=20).mean().iloc[-1]
         ema_slow = close.ewm(span=50).mean().iloc[-1]
         price = float(close.iloc[-1])
-        
-        # RSI 14
+
         delta = close.diff()
         gain = delta.where(delta > 0, 0).ewm(alpha=1/14).mean()
         loss = -delta.where(delta < 0, 0).ewm(alpha=1/14).mean()
@@ -56,9 +62,9 @@ def get_signal():
         rsi_now = float(rsi.iloc[-1])
 
         signal = None
-        if ema_fast > ema_slow and rsi_now > 50 and rsi_now < 75:
+        if ema_fast > ema_slow and 50 < rsi_now < 75:
             signal = "BUY"
-        elif ema_fast < ema_slow and rsi_now < 50 and rsi_now > 25:
+        elif ema_fast < ema_slow and 25 < rsi_now < 50:
             signal = "SELL"
 
         return signal, price
